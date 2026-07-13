@@ -47,11 +47,11 @@
 
   label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
   label:first-child{margin-top:0}
-  input[type=text],input[type=number],textarea{
+  input[type=text],input[type=number],input[type=password],textarea,select{
     width:100%; padding:9px 10px; background:var(--bg); color:var(--text);
     border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit;
   }
-  input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
   textarea{resize:vertical;min-height:56px}
   .row{display:flex;gap:10px}
   .row>div{flex:1}
@@ -257,10 +257,36 @@
         </div>
 
         <div class="cartoon-actions">
-          <button class="primary" onclick="processCartoon()">🎨 Cartoonify</button>
+          <button class="primary" onclick="processCartoon()">🎨 Cartoonify (local, offline)</button>
           <button onclick="buildCartoonLayers()" id="cBuildBtn" disabled>🧩 Build layer set</button>
           <button onclick="downloadCartoonLayers()" id="cDlBtn" disabled>⬇️ Download layers folder (ZIP)</button>
         </div>
+
+        <details class="section" id="aiSection" style="margin-top:16px">
+          <summary>✨ AI cartoon character (beta) — true redraw via an image model</summary>
+          <div class="body">
+            <p class="hint" style="margin-top:0">
+              The local filter above stylizes your photo offline. For a real
+              cartoon-<i>character</i> redraw, this sends your photo to an image model.
+              Deploy the tiny proxy in <code>ai-cartoon-proxy/</code> (keeps your API key
+              server-side &amp; handles CORS), then paste its URL below. See that folder's
+              <code>README.md</code> for the ~2-minute setup.
+            </p>
+            <label>Style</label>
+            <select id="aiStyle">
+              <option value="anime">Anime / manga</option>
+              <option value="pixar">3D Pixar-style</option>
+              <option value="comic">Western comic</option>
+              <option value="sticker">Sticker / chibi</option>
+            </select>
+            <label>AI endpoint URL (your deployed proxy)</label>
+            <input type="text" id="aiEndpoint" placeholder="https://your-worker.workers.dev">
+            <label>API key (optional — only if your endpoint requires one)</label>
+            <input type="password" id="aiKey" placeholder="sent as Authorization: Bearer …">
+            <button class="primary full" onclick="processAICartoon()">✨ Generate AI cartoon</button>
+            <div id="aiStatus" class="hint"></div>
+          </div>
+        </details>
 
         <div id="cartoonStatus" class="hint" style="margin-top:12px"></div>
         <div id="cartoonLayers" class="layerset"></div>
@@ -760,6 +786,66 @@ function processCartoon() {
   document.getElementById("cDlBtn").disabled = true;
   document.getElementById("cartoonLayers").innerHTML = "";
   cSetStatus("Cartoon ready. Now build the layer set.");
+}
+
+/* ---------- AI cartoon character (external image model via proxy) ---------- */
+const AI_PROMPTS = {
+  anime:   "Turn this into a high-quality anime / manga character portrait: clean cel shading, crisp line art, expressive large eyes, vibrant colors, keep the subject's pose and identity.",
+  pixar:   "Turn this into a 3D animated movie character in Pixar style: rounded soft features, smooth shading, cinematic soft lighting, keep the subject's pose and identity.",
+  comic:   "Turn this into a western comic-book character: bold black ink outlines, flat cel coloring, halftone shading, dynamic look, keep the subject's pose and identity.",
+  sticker: "Turn this into a cute chibi sticker avatar: thick clean outline, simplified shapes, kawaii style, flat bright colors, keep the subject recognizable.",
+};
+const aiSetStatus = (m, err) => {
+  const s = document.getElementById("aiStatus");
+  s.textContent = m; s.style.color = err ? "var(--bad)" : "";
+};
+function loadImgCORS(url) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.crossOrigin = "anonymous";
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("could not load the returned image"));
+    i.src = url;
+  });
+}
+async function processAICartoon() {
+  if (!cartoonSource) return aiSetStatus("Upload a photo first.", true);
+  const ep = document.getElementById("aiEndpoint").value.trim();
+  if (!ep) return aiSetStatus("Enter your AI endpoint URL (your deployed proxy).", true);
+  const style = document.getElementById("aiStyle").value;
+  const key = document.getElementById("aiKey").value.trim();
+  const btn = document.querySelector("#aiSection button.primary");
+  if (btn) btn.disabled = true;
+  aiSetStatus("Sending your photo to the AI model… this usually takes 10–40s.");
+  try {
+    const image = document.getElementById("cvSrc").toDataURL("image/jpeg", 0.9);
+    const headers = { "Content-Type": "application/json" };
+    if (key) headers["Authorization"] = "Bearer " + key;
+    const res = await fetch(ep, {
+      method: "POST", headers,
+      body: JSON.stringify({ image, style, prompt: AI_PROMPTS[style] }),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status + " — " + (await res.text()).slice(0, 180));
+    const data = await res.json();
+    const outUrl = data.image || (Array.isArray(data.output) ? data.output[0] : data.output) || data.url;
+    if (!outUrl) throw new Error("the endpoint returned no image");
+    const img = await loadImgCORS(outUrl);
+    const octx = document.getElementById("cvOut").getContext("2d");
+    drawCover(octx, img, SIZE);
+    try {
+      cartoonBase = octx.getImageData(0, 0, SIZE, SIZE);
+    } catch (taint) {
+      throw new Error("the image is cross-origin tainted — have your proxy return the image as a base64 data URL (the bundled proxy does this).");
+    }
+    document.getElementById("cBuildBtn").disabled = false;
+    document.getElementById("cDlBtn").disabled = true;
+    document.getElementById("cartoonLayers").innerHTML = "";
+    aiSetStatus("AI cartoon ready ✓ Now hit “Build layer set”.");
+  } catch (e) {
+    aiSetStatus("AI request failed: " + e.message, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* ---------- background cutout (flood fill from corners) ---------- */
