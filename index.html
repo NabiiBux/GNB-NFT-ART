@@ -108,6 +108,30 @@
   }
   .empty .big{font-size:40px}
   code{background:var(--panel2);padding:2px 6px;border-radius:5px;font-size:12px}
+
+  /* Tabs + Cartoonizer */
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border)}
+  .tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;color:var(--muted);padding:10px 14px}
+  .tab:hover{border-color:transparent;color:var(--text)}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent)}
+  .hidden{display:none !important}
+  .drop{border:2px dashed var(--border);border-radius:16px;padding:34px;text-align:center;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;gap:6px;align-items:center}
+  .drop:hover{border-color:var(--accent)}
+  .cartoon-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:860px){.cartoon-grid{grid-template-columns:1fr}}
+  .preview-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+  .preview-box h3{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .preview-box canvas{width:100%;height:auto;display:block;border-radius:8px;
+    background:repeating-conic-gradient(#20262f 0% 25%, #262d38 0% 50%) 50% / 20px 20px}
+  .opts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
+  .cartoon-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .cartoon-actions button{flex:1;min-width:150px}
+  .layerset h3{font-size:13px;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center}
+  .layerset h3 .cnt{color:var(--muted);font-size:11px;font-weight:400}
+  .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px}
+  .thumb{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;text-align:center}
+  .thumb canvas{width:100%;display:block;background:repeating-conic-gradient(#20262f 0% 25%, #262d38 0% 50%) 50% / 16px 16px}
+  .thumb span{display:block;font-size:10px;color:var(--muted);padding:4px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -180,19 +204,67 @@
 
   <!-- ============ MAIN ============ -->
   <main>
-    <div class="topbar">
-      <div class="stat"><div class="k">Layers</div><div class="v" id="statLayers">0</div></div>
-      <div class="stat"><div class="k">Possible combos</div><div class="v" id="statCombos">0</div></div>
-      <div class="stat"><div class="k">Generated</div><div class="v" id="statDone">0</div></div>
-      <div class="grow"></div>
+    <div class="tabs">
+      <button class="tab active" id="tab-generator" onclick="switchTab('generator')">🎨 Generator</button>
+      <button class="tab" id="tab-cartoon" onclick="switchTab('cartoon')">🖼️ Photo → Cartoon Layers</button>
     </div>
-    <div class="progress"><i id="bar"></i></div>
-    <div id="status">Upload a layers folder to begin.</div>
-    <div id="gallery" class="gallery"></div>
-    <div id="empty" class="empty">
-      <div class="big">🖼️</div>
-      <div>Your generated NFTs will appear here.</div>
-      <div class="hint">Upload layers, set the supply, then hit <b>Generate</b>.</div>
+
+    <!-- ---- Generator view ---- -->
+    <div id="view-generator">
+      <div class="topbar">
+        <div class="stat"><div class="k">Layers</div><div class="v" id="statLayers">0</div></div>
+        <div class="stat"><div class="k">Possible combos</div><div class="v" id="statCombos">0</div></div>
+        <div class="stat"><div class="k">Generated</div><div class="v" id="statDone">0</div></div>
+        <div class="grow"></div>
+      </div>
+      <div class="progress"><i id="bar"></i></div>
+      <div id="status">Upload a layers folder to begin.</div>
+      <div id="gallery" class="gallery"></div>
+      <div id="empty" class="empty">
+        <div class="big">🖼️</div>
+        <div>Your generated NFTs will appear here.</div>
+        <div class="hint">Upload layers, set the supply, then hit <b>Generate</b>.</div>
+      </div>
+    </div>
+
+    <!-- ---- Photo → Cartoon Layers view ---- -->
+    <div id="view-cartoon" class="hidden">
+      <p class="hint" style="margin-top:0">
+        Turn any real photo into a cartoon and export a ready-to-generate <b>layer folder</b>.
+        Everything runs locally — your photo never leaves this device.
+        Every exported layer is <b>1024×1024</b>. Unzip the download, then upload it in the
+        <b>Generator</b> tab's <i>Layers</i> section to mint fresh cartoon NFTs.
+      </p>
+
+      <input type="file" id="cartoonInput" accept="image/*" hidden>
+      <div class="drop" id="cartoonDrop">
+        <div style="font-size:34px">🖼️➜🎨</div>
+        <div><b>Click to upload a photo</b> — a portrait / face works best</div>
+        <div class="hint">PNG · JPG · WEBP · GIF</div>
+      </div>
+
+      <div id="cartoonWork" class="hidden">
+        <div class="cartoon-grid" style="margin-top:16px">
+          <div class="preview-box"><h3>Original</h3><canvas id="cvSrc" width="1024" height="1024"></canvas></div>
+          <div class="preview-box"><h3>Cartoon</h3><canvas id="cvOut" width="1024" height="1024"></canvas></div>
+        </div>
+
+        <div class="opts">
+          <div><label>Color levels (posterize)</label><input type="number" id="cLevels" value="6" min="2" max="16"></div>
+          <div><label>Edge / ink strength (0–100)</label><input type="number" id="cEdge" value="70" min="0" max="100"></div>
+          <div><label>Smoothing (0–5)</label><input type="number" id="cSmooth" value="2" min="0" max="5"></div>
+          <div><label>Background cutout tolerance</label><input type="number" id="cTol" value="42" min="0" max="150"></div>
+        </div>
+
+        <div class="cartoon-actions">
+          <button class="primary" onclick="processCartoon()">🎨 Cartoonify</button>
+          <button onclick="buildCartoonLayers()" id="cBuildBtn" disabled>🧩 Build layer set</button>
+          <button onclick="downloadCartoonLayers()" id="cDlBtn" disabled>⬇️ Download layers folder (ZIP)</button>
+        </div>
+
+        <div id="cartoonStatus" class="hint" style="margin-top:12px"></div>
+        <div id="cartoonLayers" class="layerset"></div>
+      </div>
     </div>
   </main>
 </div>
@@ -518,6 +590,367 @@ async function downloadZip() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   setStatus(`ZIP downloaded — ${results.length} images + metadata.`, "ok");
+}
+
+/* =========================================================================
+   PHOTO → CARTOON LAYERS
+   Cartoonifies an uploaded photo (posterize + ink edges) fully in-browser,
+   then decomposes it into a 1024×1024 layer set (Background / Character /
+   Tint / FX / Frame with rarity weights) exported as a re-uploadable folder.
+   ========================================================================= */
+const SIZE = 1024;
+let cartoonSource = null;    // uploaded Image
+let cartoonBase = null;      // cartoonified ImageData
+let cartoonLayers = [];      // [{folder, traits:[{name,weight,canvas}]}]
+
+function switchTab(name) {
+  document.getElementById("view-generator").classList.toggle("hidden", name !== "generator");
+  document.getElementById("view-cartoon").classList.toggle("hidden", name !== "cartoon");
+  document.getElementById("tab-generator").classList.toggle("active", name === "generator");
+  document.getElementById("tab-cartoon").classList.toggle("active", name === "cartoon");
+}
+
+const clampInt = (id, def, lo, hi) => {
+  const v = parseInt(document.getElementById(id).value);
+  return isNaN(v) ? def : Math.max(lo, Math.min(hi, v));
+};
+const cSetStatus = (m) => { document.getElementById("cartoonStatus").textContent = m; };
+function newCanvas() {
+  const c = document.createElement("canvas");
+  c.width = c.height = SIZE;
+  return c;
+}
+function drawCover(ctx, img) {
+  const scale = Math.max(SIZE / img.width, SIZE / img.height);
+  const w = img.width * scale, h = img.height * scale;
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+}
+
+/* ---------- upload ---------- */
+document.getElementById("cartoonDrop").onclick = () =>
+  document.getElementById("cartoonInput").click();
+document.getElementById("cartoonInput").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    cartoonSource = img;
+    document.getElementById("cartoonWork").classList.remove("hidden");
+    drawCover(document.getElementById("cvSrc").getContext("2d"), img);
+    document.getElementById("cvOut").getContext("2d").clearRect(0, 0, SIZE, SIZE);
+    document.getElementById("cBuildBtn").disabled = true;
+    document.getElementById("cDlBtn").disabled = true;
+    document.getElementById("cartoonLayers").innerHTML = "";
+    cartoonBase = null;
+    cSetStatus("Photo loaded. Adjust the options and hit Cartoonify.");
+  };
+  img.src = URL.createObjectURL(f);
+});
+
+/* ---------- cartoon filter (posterize + sobel ink) ---------- */
+function boxBlur(src, W, H, r) {
+  if (r <= 0) return src;
+  const tmp = new Uint8ClampedArray(src.length);
+  const out = new Uint8ClampedArray(src.length);
+  // horizontal
+  for (let y = 0; y < H; y++) {
+    for (let c = 0; c < 3; c++) {
+      let sum = 0;
+      for (let x = -r; x <= r; x++) sum += src[(y * W + Math.min(W - 1, Math.max(0, x))) * 4 + c];
+      for (let x = 0; x < W; x++) {
+        tmp[(y * W + x) * 4 + c] = sum / (2 * r + 1);
+        const add = Math.min(W - 1, x + r + 1), sub = Math.max(0, x - r);
+        sum += src[(y * W + add) * 4 + c] - src[(y * W + sub) * 4 + c];
+      }
+    }
+  }
+  // vertical
+  for (let x = 0; x < W; x++) {
+    for (let c = 0; c < 3; c++) {
+      let sum = 0;
+      for (let y = -r; y <= r; y++) sum += tmp[(Math.min(H - 1, Math.max(0, y)) * W + x) * 4 + c];
+      for (let y = 0; y < H; y++) {
+        out[(y * W + x) * 4 + c] = sum / (2 * r + 1);
+        const add = Math.min(H - 1, y + r + 1), sub = Math.max(0, y - r);
+        sum += tmp[(add * W + x) * 4 + c] - tmp[(sub * W + x) * 4 + c];
+      }
+    }
+  }
+  for (let i = 3; i < out.length; i += 4) out[i] = 255;
+  return out;
+}
+
+function cartoonify(imgData, opts) {
+  const W = imgData.width, H = imgData.height;
+  const base = boxBlur(new Uint8ClampedArray(imgData.data), W, H, opts.smooth);
+  const gray = new Float32Array(W * H);
+  for (let i = 0, p = 0; i < W * H; i++, p += 4)
+    gray[i] = 0.299 * base[p] + 0.587 * base[p + 1] + 0.114 * base[p + 2];
+
+  const out = new Uint8ClampedArray(W * H * 4);
+  const L = opts.levels, step = 255 / (L - 1);
+  const thr = 90;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x, p = i * 4;
+      for (let c = 0; c < 3; c++)
+        out[p + c] = Math.round(Math.round(base[p + c] / step) * step);
+      out[p + 3] = 255;
+      // sobel edge magnitude
+      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) {
+        const gx =
+          -gray[i - W - 1] - 2 * gray[i - 1] - gray[i + W - 1] +
+           gray[i - W + 1] + 2 * gray[i + 1] + gray[i + W + 1];
+        const gy =
+          -gray[i - W - 1] - 2 * gray[i - W] - gray[i - W + 1] +
+           gray[i + W - 1] + 2 * gray[i + W] + gray[i + W + 1];
+        if (Math.hypot(gx, gy) > thr) {
+          const k = opts.edgeStrength;
+          out[p] *= (1 - k); out[p + 1] *= (1 - k); out[p + 2] *= (1 - k);
+        }
+      }
+    }
+  }
+  return new ImageData(out, W, H);
+}
+
+function processCartoon() {
+  if (!cartoonSource) return;
+  const sctx = document.getElementById("cvSrc").getContext("2d");
+  const id = sctx.getImageData(0, 0, SIZE, SIZE);
+  const out = cartoonify(id, {
+    levels: clampInt("cLevels", 6, 2, 16),
+    edgeStrength: clampInt("cEdge", 70, 0, 100) / 100,
+    smooth: clampInt("cSmooth", 2, 0, 5),
+  });
+  cartoonBase = out;
+  document.getElementById("cvOut").getContext("2d").putImageData(out, 0, 0);
+  document.getElementById("cBuildBtn").disabled = false;
+  document.getElementById("cDlBtn").disabled = true;
+  document.getElementById("cartoonLayers").innerHTML = "";
+  cSetStatus("Cartoon ready. Now build the layer set.");
+}
+
+/* ---------- background cutout (flood fill from corners) ---------- */
+function cutoutBackground(imgData, tol) {
+  const W = imgData.width, H = imgData.height, d = imgData.data;
+  const out = new Uint8ClampedArray(d);
+  const corners = [0, W - 1, (H - 1) * W, W * H - 1];
+  let r = 0, g = 0, b = 0;
+  for (const c of corners) { r += d[c * 4]; g += d[c * 4 + 1]; b += d[c * 4 + 2]; }
+  r /= 4; g /= 4; b /= 4;
+  const visited = new Uint8Array(W * H);
+  const stack = corners.slice();
+  const lim = tol * 3;
+  while (stack.length) {
+    const idx = stack.pop();
+    if (visited[idx]) continue;
+    const p = idx * 4;
+    if (Math.abs(d[p] - r) + Math.abs(d[p + 1] - g) + Math.abs(d[p + 2] - b) > lim) continue;
+    visited[idx] = 1;
+    out[p + 3] = 0;
+    const x = idx % W, y = (idx / W) | 0;
+    if (x > 0) stack.push(idx - 1);
+    if (x < W - 1) stack.push(idx + 1);
+    if (y > 0) stack.push(idx - W);
+    if (y < H - 1) stack.push(idx + W);
+  }
+  return new ImageData(out, W, H);
+}
+
+/* ---------- colour grades (preserve alpha) ---------- */
+function applyGrade(imgData, type) {
+  const d = new Uint8ClampedArray(imgData.data);
+  for (let p = 0; p < d.length; p += 4) {
+    if (d[p + 3] === 0) continue;
+    let r = d[p], g = d[p + 1], b = d[p + 2];
+    if (type === "Warm") { r = r * 1.12 + 12; b = b * 0.85; }
+    else if (type === "Cool") { b = b * 1.12 + 12; r = r * 0.88; }
+    else if (type === "Mono") { const l = 0.299 * r + 0.587 * g + 0.114 * b; r = g = b = l; }
+    else if (type === "Pop") {
+      const l = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = l + (r - l) * 1.5; g = l + (g - l) * 1.5; b = l + (b - l) * 1.5;
+    }
+    d[p] = r; d[p + 1] = g; d[p + 2] = b;
+  }
+  return new ImageData(d, imgData.width, imgData.height);
+}
+
+/* ---------- trait builders ---------- */
+function bgCanvas(kind) {
+  const c = newCanvas(), ctx = c.getContext("2d");
+  const grad = (a, b) => { const g = ctx.createLinearGradient(0, 0, SIZE, SIZE); g.addColorStop(0, a); g.addColorStop(1, b); return g; };
+  const fills = {
+    Midnight: "#0e1116", Slate: "#243040",
+    Ocean: grad("#0ea5e9", "#6366f1"), Sunset: grad("#f59e0b", "#ef4444"),
+    Mint: grad("#10b981", "#06b6d4"), Grape: grad("#8b5cf6", "#ec4899"),
+  };
+  ctx.fillStyle = fills[kind]; ctx.fillRect(0, 0, SIZE, SIZE);
+  return c;
+}
+function imageDataToCanvas(id) {
+  const c = newCanvas(); c.getContext("2d").putImageData(id, 0, 0); return c;
+}
+function tintCanvas(kind) {
+  const c = newCanvas(), ctx = c.getContext("2d");
+  const map = { Clear: null, Amber: "rgba(245,158,11,.18)", Azure: "rgba(59,130,246,.18)",
+    Rose: "rgba(244,63,94,.16)", Emerald: "rgba(16,185,129,.16)" };
+  if (map[kind]) { ctx.fillStyle = map[kind]; ctx.fillRect(0, 0, SIZE, SIZE); }
+  return c;
+}
+function fxCanvas(kind) {
+  const c = newCanvas(), ctx = c.getContext("2d");
+  if (kind === "Vignette") {
+    const g = ctx.createRadialGradient(SIZE/2, SIZE/2, SIZE*0.3, SIZE/2, SIZE/2, SIZE*0.72);
+    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.55)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
+  } else if (kind === "Glow") {
+    const g = ctx.createRadialGradient(SIZE/2, SIZE*0.42, 40, SIZE/2, SIZE*0.42, SIZE*0.6);
+    g.addColorStop(0, "rgba(255,255,255,.28)"); g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
+  } else if (kind === "Halftone") {
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    for (let y = 12; y < SIZE; y += 26) for (let x = 12; x < SIZE; x += 26) {
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+    }
+  } else if (kind === "Sparkle") {
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * SIZE, y = Math.random() * SIZE, s = 1 + Math.random() * 3;
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+  return c;
+}
+function frameCanvas(kind) {
+  const c = newCanvas(), ctx = c.getContext("2d");
+  if (kind === "Thin") { ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.lineWidth = 14; ctx.strokeRect(28, 28, SIZE-56, SIZE-56); }
+  else if (kind === "Bold") { ctx.strokeStyle = "#0e1116"; ctx.lineWidth = 46; ctx.strokeRect(23, 23, SIZE-46, SIZE-46); }
+  else if (kind === "Inset") {
+    ctx.strokeStyle = "rgba(110,168,254,.9)"; ctx.lineWidth = 8; ctx.strokeRect(46, 46, SIZE-92, SIZE-92);
+    ctx.strokeStyle = "rgba(139,92,246,.9)"; ctx.lineWidth = 8; ctx.strokeRect(70, 70, SIZE-140, SIZE-140);
+  }
+  return c;
+}
+
+/* ---------- build the layer set ---------- */
+function buildCartoonLayers() {
+  if (!cartoonBase) return;
+  cSetStatus("Building layers…");
+  const cut = cutoutBackground(cartoonBase, clampInt("cTol", 42, 0, 150));
+
+  cartoonLayers = [
+    { folder: "01_Background", traits: [
+      { name: "Midnight", weight: 25, canvas: bgCanvas("Midnight") },
+      { name: "Slate", weight: 22, canvas: bgCanvas("Slate") },
+      { name: "Ocean", weight: 16, canvas: bgCanvas("Ocean") },
+      { name: "Sunset", weight: 14, canvas: bgCanvas("Sunset") },
+      { name: "Mint", weight: 13, canvas: bgCanvas("Mint") },
+      { name: "Grape", weight: 10, canvas: bgCanvas("Grape") },
+    ]},
+    { folder: "02_Character", traits: [
+      { name: "Classic", weight: 34, canvas: imageDataToCanvas(cut) },
+      { name: "Warm", weight: 20, canvas: imageDataToCanvas(applyGrade(cut, "Warm")) },
+      { name: "Cool", weight: 20, canvas: imageDataToCanvas(applyGrade(cut, "Cool")) },
+      { name: "Pop", weight: 16, canvas: imageDataToCanvas(applyGrade(cut, "Pop")) },
+      { name: "Noir", weight: 10, canvas: imageDataToCanvas(applyGrade(cut, "Mono")) },
+    ]},
+    { folder: "03_Tint", traits: [
+      { name: "Clear", weight: 45, canvas: tintCanvas("Clear") },
+      { name: "Amber", weight: 15, canvas: tintCanvas("Amber") },
+      { name: "Azure", weight: 15, canvas: tintCanvas("Azure") },
+      { name: "Rose", weight: 13, canvas: tintCanvas("Rose") },
+      { name: "Emerald", weight: 12, canvas: tintCanvas("Emerald") },
+    ]},
+    { folder: "04_FX", traits: [
+      { name: "None", weight: 40, canvas: fxCanvas("None") },
+      { name: "Vignette", weight: 20, canvas: fxCanvas("Vignette") },
+      { name: "Glow", weight: 16, canvas: fxCanvas("Glow") },
+      { name: "Halftone", weight: 13, canvas: fxCanvas("Halftone") },
+      { name: "Sparkle", weight: 11, canvas: fxCanvas("Sparkle") },
+    ]},
+    { folder: "05_Frame", traits: [
+      { name: "None", weight: 48, canvas: frameCanvas("None") },
+      { name: "Thin", weight: 22, canvas: frameCanvas("Thin") },
+      { name: "Bold", weight: 18, canvas: frameCanvas("Bold") },
+      { name: "Inset", weight: 12, canvas: frameCanvas("Inset") },
+    ]},
+  ];
+
+  renderCartoonLayers();
+  document.getElementById("cDlBtn").disabled = false;
+  const combos = cartoonLayers.reduce((a, l) => a * l.traits.length, 1);
+  cSetStatus(`Built ${cartoonLayers.length} layers · ${combos.toLocaleString()} possible cartoon combos. Download the folder, then upload it in the Generator tab.`);
+}
+
+function renderCartoonLayers() {
+  const root = document.getElementById("cartoonLayers");
+  root.innerHTML = "";
+
+  // sample composite
+  const sample = document.createElement("div");
+  sample.className = "preview-box";
+  sample.style.maxWidth = "360px";
+  sample.innerHTML = '<h3>Sample NFT <button style="float:right;padding:2px 8px;font-size:11px" onclick="shuffleSample()">🎲 Shuffle</button></h3><canvas id="cvSample" width="1024" height="1024"></canvas>';
+  root.appendChild(sample);
+  shuffleSample();
+
+  cartoonLayers.forEach((layer) => {
+    const h = document.createElement("h3");
+    h.innerHTML = `${escapeHtml(layer.folder)} <span class="cnt">${layer.traits.length} traits</span>`;
+    root.appendChild(h);
+    const grid = document.createElement("div");
+    grid.className = "thumbs";
+    layer.traits.forEach((t) => {
+      const cell = document.createElement("div");
+      cell.className = "thumb";
+      const mini = document.createElement("canvas");
+      mini.width = mini.height = 128;
+      mini.getContext("2d").drawImage(t.canvas, 0, 0, 128, 128);
+      cell.appendChild(mini);
+      const span = document.createElement("span");
+      span.textContent = `${t.name} ·${t.weight}`;
+      cell.appendChild(span);
+      grid.appendChild(cell);
+    });
+    root.appendChild(grid);
+  });
+}
+
+function shuffleSample() {
+  const c = document.getElementById("cvSample");
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  for (const layer of cartoonLayers) {
+    const total = layer.traits.reduce((a, t) => a + t.weight, 0);
+    let rand = Math.floor(Math.random() * total), pick = layer.traits[0];
+    for (const t of layer.traits) { rand -= t.weight; if (rand < 0) { pick = t; break; } }
+    ctx.drawImage(pick.canvas, 0, 0);
+  }
+}
+
+/* ---------- export as re-uploadable folder ---------- */
+async function downloadCartoonLayers() {
+  if (!cartoonLayers.length) return;
+  cSetStatus("Packaging layer folder…");
+  const files = [];
+  for (const layer of cartoonLayers) {
+    for (const t of layer.traits) {
+      const blob = await canvasToBlob(t.canvas);
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      files.push({ name: `cartoon-nft-layers/${layer.folder}/${t.name}$${t.weight}.png`, data: buf });
+    }
+  }
+  const zip = buildZip(files);
+  const url = URL.createObjectURL(zip);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "cartoon-nft-layers.zip";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  cSetStatus(`Downloaded ${files.length} layer images. Unzip it, then switch to the Generator tab and upload the "cartoon-nft-layers" folder to mint new cartoon NFTs.`);
 }
 </script>
 </body>
