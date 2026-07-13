@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GNB NFT ART</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#171b22; --panel2:#1e232c; --border:#2a313c;
+    --text:#e6eaf0; --muted:#96a0af; --accent:#6ea8fe; --accent2:#8b5cf6;
+    --good:#3fb950; --bad:#f85149; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.5;
+  }
+  a{color:var(--accent);text-decoration:none}
+  .app{display:grid; grid-template-columns:360px 1fr; height:100vh; overflow:hidden}
+  @media (max-width:860px){ .app{grid-template-columns:1fr; height:auto} }
+
+  /* Sidebar */
+  aside{
+    background:var(--panel); border-right:1px solid var(--border);
+    padding:20px; overflow-y:auto;
+  }
+  .brand{display:flex; align-items:center; gap:10px; margin-bottom:18px}
+  .brand .logo{
+    width:34px;height:34px;border-radius:9px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-size:18px
+  }
+  .brand h1{font-size:16px;margin:0}
+  .brand small{color:var(--muted);font-weight:400}
+
+  .section{margin-bottom:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .section>summary{
+    list-style:none; cursor:pointer; padding:11px 14px; font-weight:600;
+    background:var(--panel2); display:flex; justify-content:space-between; align-items:center;
+    user-select:none;
+  }
+  .section>summary::-webkit-details-marker{display:none}
+  .section>summary::after{content:"▾"; color:var(--muted); transition:transform .2s}
+  .section[open]>summary::after{transform:rotate(180deg)}
+  .section .body{padding:14px}
+
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  label:first-child{margin-top:0}
+  input[type=text],input[type=number],textarea{
+    width:100%; padding:9px 10px; background:var(--bg); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit;
+  }
+  input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  textarea{resize:vertical;min-height:56px}
+  .row{display:flex;gap:10px}
+  .row>div{flex:1}
+
+  button{
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    border:1px solid var(--border); background:var(--panel2); color:var(--text);
+    padding:9px 12px; border-radius:8px; transition:.15s;
+  }
+  button:hover{border-color:var(--accent)}
+  button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.full{width:100%;margin-top:10px}
+
+  .layer{
+    display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);
+    border:1px solid var(--border);border-radius:8px;margin-top:8px
+  }
+  .layer .name{flex:1;font-weight:600}
+  .layer .cnt{color:var(--muted);font-size:12px}
+  .layer .ord{display:flex;flex-direction:column;gap:2px}
+  .layer .ord button{padding:0 6px;font-size:11px;line-height:1.4}
+
+  .hint{color:var(--muted);font-size:12px;margin-top:8px}
+
+  /* Main */
+  main{padding:24px;overflow-y:auto;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .topbar .grow{flex:1}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;min-width:120px}
+  .stat .k{color:var(--muted);font-size:12px}
+  .stat .v{font-size:20px;font-weight:700}
+
+  .progress{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin:4px 0 16px}
+  .progress>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+
+  #status{min-height:20px;color:var(--muted);margin-bottom:12px}
+  #status.err{color:var(--bad)}
+  #status.ok{color:var(--good)}
+
+  .gallery{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;
+  }
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .card img{width:100%;display:block;background:
+    repeating-conic-gradient(#20262f 0% 25%, #262d38 0% 50%) 50% / 20px 20px}
+  .card .cap{padding:8px 10px;font-size:12px;color:var(--muted)}
+  .card .cap b{color:var(--text);display:block;font-size:13px}
+
+  .empty{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:var(--muted);text-align:center;gap:8px;border:2px dashed var(--border);border-radius:16px;padding:40px
+  }
+  .empty .big{font-size:40px}
+  code{background:var(--panel2);padding:2px 6px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside>
+    <div class="brand">
+      <div class="logo">🎨</div>
+      <div>
+        <h1>GNB NFT ART</h1>
+        <small>Generate in your browser</small>
+      </div>
+    </div>
+
+    <details class="section" open>
+      <summary>1 · Layers</summary>
+      <div class="body">
+        <input type="file" id="folderInput" webkitdirectory directory multiple hidden />
+        <button class="primary full" onclick="document.getElementById('folderInput').click()">
+          📁 Upload layers folder
+        </button>
+        <div class="hint">
+          Pick one folder whose sub-folders are your layers
+          (e.g. <code>Background</code>, <code>Body</code>, <code>Eyes</code>),
+          each holding <code>.png</code> images. Add rarity with
+          <code>name$weight.png</code> (e.g. <code>blue$25.png</code>).
+        </div>
+        <div id="layerList"></div>
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>2 · Configuration</summary>
+      <div class="body">
+        <div class="row">
+          <div><label>Supply</label><input type="number" id="supply" value="10" min="1"></div>
+          <div><label>Symbol</label><input type="text" id="symbol" value="GNB"></div>
+        </div>
+        <label>Collection name</label>
+        <input type="text" id="name" value="GNB NFT">
+        <label>Description</label>
+        <textarea id="description">This is a collection about...</textarea>
+        <div class="row">
+          <div><label>Width (px)</label><input type="number" id="width" value="1024" min="1"></div>
+          <div><label>Height (px)</label><input type="number" id="height" value="1024" min="1"></div>
+        </div>
+        <label>Base URI (metadata image path)</label>
+        <input type="text" id="baseUri" value="ipfs://ReplaceCID">
+      </div>
+    </details>
+
+    <details class="section" open>
+      <summary>3 · Generate</summary>
+      <div class="body">
+        <button class="primary full" id="genBtn" onclick="startCreating()">⚡ Generate collection</button>
+        <button class="full" id="dlBtn" onclick="downloadZip()" disabled>⬇️ Download ZIP (images + JSON)</button>
+      </div>
+    </details>
+
+    <div class="hint" style="text-align:center;margin-top:8px">
+      GNB NFT ART — everything runs locally in your browser. No uploads leave your device.
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="topbar">
+      <div class="stat"><div class="k">Layers</div><div class="v" id="statLayers">0</div></div>
+      <div class="stat"><div class="k">Possible combos</div><div class="v" id="statCombos">0</div></div>
+      <div class="stat"><div class="k">Generated</div><div class="v" id="statDone">0</div></div>
+      <div class="grow"></div>
+    </div>
+    <div class="progress"><i id="bar"></i></div>
+    <div id="status">Upload a layers folder to begin.</div>
+    <div id="gallery" class="gallery"></div>
+    <div id="empty" class="empty">
+      <div class="big">🖼️</div>
+      <div>Your generated NFTs will appear here.</div>
+      <div class="hint">Upload layers, set the supply, then hit <b>Generate</b>.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* =========================================================================
+   GNB NFT ART — browser-based layered NFT generator.
+   No filesystem, no Electron: uploads stay in memory, output is a ZIP.
+   ========================================================================= */
+
+let layers = [];              // [{name, elements:[{id,name,filename,weight,url}]}]
+let results = [];             // generated: [{edition, blob, metadata}]
+let generating = false;
+
+/* ---------- filename helpers (name$weight.png) ---------- */
+const cleanName = (str) => str.replace(/\.[^.]+$/, "").split("$")[0];
+const getRarityWeight = (str) => {
+  const noExt = str.replace(/\.[^.]+$/, "");
+  const w = Number(noExt.split("$").pop());
+  return isNaN(w) ? 1 : w;
+};
+
+/* ---------- layer upload ---------- */
+document.getElementById("folderInput").addEventListener("change", (e) => {
+  const files = [...e.target.files].filter(f => /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(f.name));
+  const groups = {};   // layerName -> [File]
+  for (const f of files) {
+    const parts = (f.webkitRelativePath || f.name).split("/");
+    // parts[0] = root folder, parts[1] = layer folder (if present)
+    const layerName = parts.length >= 3 ? parts[1] : (parts.length === 2 ? parts[0] : "Layer");
+    (groups[layerName] ||= []).push(f);
+  }
+  layers = Object.keys(groups).map((layerName, li) => ({
+    name: layerName,
+    elements: groups[layerName].map((f, ei) => ({
+      id: ei,
+      name: cleanName(f.name),
+      filename: f.name,
+      weight: getRarityWeight(f.name),
+      url: URL.createObjectURL(f),
+    })),
+  }));
+  renderLayers();
+  updateStats();
+  if (layers.length) setStatus(`Loaded ${layers.length} layers. Ready to generate.`, "ok");
+  else setStatus("No image layers found in that folder.", "err");
+});
+
+function renderLayers() {
+  const el = document.getElementById("layerList");
+  el.innerHTML = "";
+  layers.forEach((layer, i) => {
+    const div = document.createElement("div");
+    div.className = "layer";
+    div.innerHTML = `
+      <div class="ord">
+        <button ${i===0?"disabled":""} onclick="moveLayer(${i},-1)">▲</button>
+        <button ${i===layers.length-1?"disabled":""} onclick="moveLayer(${i},1)">▼</button>
+      </div>
+      <div class="name">${escapeHtml(layer.name)}</div>
+      <div class="cnt">${layer.elements.length} traits</div>`;
+    el.appendChild(div);
+  });
+}
+function moveLayer(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= layers.length) return;
+  [layers[i], layers[j]] = [layers[j], layers[i]];
+  renderLayers();
+}
+
+function updateStats() {
+  document.getElementById("statLayers").textContent = layers.length;
+  const combos = layers.reduce((a, l) => a * Math.max(l.elements.length, 1), layers.length ? 1 : 0);
+  document.getElementById("statCombos").textContent = combos.toLocaleString();
+  document.getElementById("statDone").textContent = results.length;
+}
+
+/* ---------- DNA (weighted random, unique) ---------- */
+function createDna(_layers) {
+  const dna = [];
+  _layers.forEach((layer) => {
+    const total = layer.elements.reduce((a, e) => a + e.weight, 0);
+    let rand = Math.floor(Math.random() * total);
+    for (const e of layer.elements) {
+      rand -= e.weight;
+      if (rand < 0) { dna.push(`${e.id}:${e.filename}`); break; }
+    }
+  });
+  return dna.join("-");
+}
+
+/* ---------- image loading & compositing ---------- */
+function loadImage(url) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = url;
+  });
+}
+function canvasToBlob(canvas) {
+  return new Promise((res) => canvas.toBlob(res, "image/png"));
+}
+
+/* ---------- main generation loop ---------- */
+async function startCreating() {
+  if (generating) return;
+  if (!layers.length) return setStatus("Upload a layers folder first.", "err");
+
+  const cfg = readConfig();
+  if (cfg.supply <= 0) return setStatus("Supply must be at least 1.", "err");
+
+  generating = true;
+  document.getElementById("genBtn").disabled = true;
+  document.getElementById("dlBtn").disabled = true;
+  results = [];
+  document.getElementById("gallery").innerHTML = "";
+  document.getElementById("empty").style.display = "none";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cfg.width; canvas.height = cfg.height;
+  const ctx = canvas.getContext("2d");
+
+  const dnaSet = new Set();
+  let edition = 1, failed = 0;
+
+  while (edition <= cfg.supply) {
+    const dna = createDna(layers);
+    if (dnaSet.has(dna)) {
+      if (++failed >= 10000) {
+        setStatus(`Only ${edition-1} unique combos possible — add more traits/layers.`, "err");
+        break;
+      }
+      continue;
+    }
+    dnaSet.add(dna);
+
+    // resolve dna -> selected elements
+    const selected = dna.split("-").map((seg, li) => {
+      const id = Number(seg.split(":")[0]);
+      return { layer: layers[li], element: layers[li].elements.find(e => e.id === id) };
+    });
+
+    ctx.clearRect(0, 0, cfg.width, cfg.height);
+    const attributes = [];
+    for (const s of selected) {
+      const img = await loadImage(s.element.url);
+      ctx.drawImage(img, 0, 0, cfg.width, cfg.height);
+      attributes.push({ trait_type: s.layer.name, value: s.element.name });
+    }
+
+    const blob = await canvasToBlob(canvas);
+    const metadata = {
+      name: `${cfg.name} #${edition}`,
+      description: cfg.description,
+      image: `${cfg.baseUri}/${edition}.png`,
+      edition,
+      date: Date.now(),
+      attributes,
+      compiler: "GNB NFT ART",
+    };
+    results.push({ edition, blob, metadata });
+    addCard(edition, blob, metadata);
+
+    setProgress(edition, cfg.supply);
+    setStatus(`Generating… ${edition}/${cfg.supply}`);
+    updateStats();
+    edition++;
+    await new Promise(r => setTimeout(r, 0)); // let the UI paint
+  }
+
+  generating = false;
+  document.getElementById("genBtn").disabled = false;
+  if (results.length) {
+    document.getElementById("dlBtn").disabled = false;
+    setStatus(`Done — ${results.length} NFTs generated. Download your ZIP below.`, "ok");
+  }
+}
+
+function readConfig() {
+  const val = (id) => document.getElementById(id).value;
+  return {
+    supply: parseInt(val("supply")) || 0,
+    name: val("name"),
+    symbol: val("symbol"),
+    description: val("description"),
+    width: parseInt(val("width")) || 1024,
+    height: parseInt(val("height")) || 1024,
+    baseUri: val("baseUri"),
+  };
+}
+
+function addCard(edition, blob, metadata) {
+  const g = document.getElementById("gallery");
+  const card = document.createElement("div");
+  card.className = "card";
+  const url = URL.createObjectURL(blob);
+  card.innerHTML = `<img src="${url}" alt="#${edition}">
+    <div class="cap"><b>${escapeHtml(metadata.name)}</b>${metadata.attributes.length} traits</div>`;
+  g.appendChild(card);
+}
+
+function setProgress(done, total) {
+  document.getElementById("bar").style.width = (100 * done / total) + "%";
+}
+function setStatus(msg, kind) {
+  const s = document.getElementById("status");
+  s.textContent = msg;
+  s.className = kind || "";
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* =========================================================================
+   Minimal ZIP writer (STORE / no compression) — pure JS, no dependencies.
+   Produces a build/ tree with images + metadata JSON.
+   ========================================================================= */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function strToBytes(s) { return new TextEncoder().encode(s); }
+
+function buildZip(files) {
+  // files: [{name, data:Uint8Array}]
+  const chunks = [], central = [];
+  let offset = 0;
+  const u16 = (n) => new Uint8Array([n & 255, (n >> 8) & 255]);
+  const u32 = (n) => new Uint8Array([n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255]);
+
+  for (const f of files) {
+    const nameBytes = strToBytes(f.name);
+    const crc = crc32(f.data);
+    const size = f.data.length;
+
+    const local = concat([
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(size), u32(size), u16(nameBytes.length), u16(0),
+      nameBytes, f.data,
+    ]);
+    chunks.push(local);
+
+    central.push(concat([
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(size), u32(size),
+      u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0),
+      u32(offset), nameBytes,
+    ]));
+    offset += local.length;
+  }
+
+  const centralStart = offset;
+  let centralSize = 0;
+  for (const c of central) { chunks.push(c); centralSize += c.length; }
+
+  chunks.push(concat([
+    u32(0x06054b50), u16(0), u16(0),
+    u16(files.length), u16(files.length),
+    u32(centralSize), u32(centralStart), u16(0),
+  ]));
+
+  return new Blob(chunks, { type: "application/zip" });
+}
+function concat(parts) {
+  let len = 0; for (const p of parts) len += p.length;
+  const out = new Uint8Array(len); let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+async function downloadZip() {
+  if (!results.length) return;
+  setStatus("Packaging ZIP…");
+  const files = [];
+  const allMeta = [];
+  for (const r of results) {
+    const buf = new Uint8Array(await r.blob.arrayBuffer());
+    files.push({ name: `build/images/${r.edition}.png`, data: buf });
+    files.push({ name: `build/json/${r.edition}.json`, data: strToBytes(JSON.stringify(r.metadata, null, 2)) });
+    allMeta.push(r.metadata);
+  }
+  files.push({ name: "build/json/_metadata.json", data: strToBytes(JSON.stringify(allMeta, null, 2)) });
+
+  const zip = buildZip(files);
+  const url = URL.createObjectURL(zip);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(document.getElementById("symbol").value || "nft").toLowerCase()}-collection.zip`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  setStatus(`ZIP downloaded — ${results.length} images + metadata.`, "ok");
+}
+</script>
+</body>
+</html>
