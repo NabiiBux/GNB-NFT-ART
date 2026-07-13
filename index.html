@@ -163,7 +163,13 @@
       <summary>3 · Generate</summary>
       <div class="body">
         <button class="primary full" id="genBtn" onclick="startCreating()">⚡ Generate collection</button>
+        <button class="full" id="updBtn" onclick="updateMetadata()" disabled>🔄 Update metadata (no re-gen)</button>
         <button class="full" id="dlBtn" onclick="downloadZip()" disabled>⬇️ Download ZIP (images + JSON)</button>
+        <div class="hint">
+          Changed the collection name, description or Base URI after generating?
+          Hit <b>Update metadata</b> to re-apply them to the existing JSON —
+          images stay as-is. (Changing <b>Supply</b> still needs a fresh Generate.)
+        </div>
       </div>
     </details>
 
@@ -363,8 +369,32 @@ async function startCreating() {
   document.getElementById("genBtn").disabled = false;
   if (results.length) {
     document.getElementById("dlBtn").disabled = false;
+    document.getElementById("updBtn").disabled = false;
     setStatus(`Done — ${results.length} NFTs generated. Download your ZIP below.`, "ok");
   }
+}
+
+/* ---------- update metadata in place (no re-generation) ----------
+   Re-applies config (collection name, description, Base URI / IPFS url, …)
+   to already-generated JSON. Supply is intentionally excluded because
+   changing the edition count requires a fresh generation. */
+function updateMetadata() {
+  if (generating) return;
+  if (!results.length) return setStatus("Generate a collection first, then you can update its metadata.", "err");
+
+  const cfg = readConfig();
+  for (const r of results) {
+    r.metadata.name = `${cfg.name} #${r.edition}`;
+    r.metadata.description = cfg.description;
+    r.metadata.image = `${cfg.baseUri}/${r.edition}.png`;
+    r.metadata.date = Date.now();
+  }
+
+  // refresh gallery captions to reflect the new collection name
+  const caps = document.querySelectorAll("#gallery .card .cap b");
+  results.forEach((r, i) => { if (caps[i]) caps[i].textContent = r.metadata.name; });
+
+  setStatus(`Updated metadata for ${results.length} NFTs — name, description & Base URI re-applied. No re-generation needed.`, "ok");
 }
 
 function readConfig() {
