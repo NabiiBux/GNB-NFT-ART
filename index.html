@@ -250,7 +250,7 @@
         </div>
 
         <div class="opts">
-          <div><label>Color levels (posterize)</label><input type="number" id="cLevels" value="6" min="2" max="16"></div>
+          <div><label>Color levels (posterize)</label><input type="number" id="cLevels" value="8" min="2" max="16"></div>
           <div><label>Edge / ink strength (0–100)</label><input type="number" id="cEdge" value="70" min="0" max="100"></div>
           <div><label>Smoothing (0–5)</label><input type="number" id="cSmooth" value="2" min="0" max="5"></div>
           <div><label>Background cutout tolerance</label><input type="number" id="cTol" value="42" min="0" max="150"></div>
@@ -620,11 +620,11 @@ function newCanvas() {
   c.width = c.height = SIZE;
   return c;
 }
-function drawCover(ctx, img) {
-  const scale = Math.max(SIZE / img.width, SIZE / img.height);
+function drawCover(ctx, img, size = SIZE) {
+  const scale = Math.max(size / img.width, size / img.height);
   const w = img.width * scale, h = img.height * scale;
-  ctx.clearRect(0, 0, SIZE, SIZE);
-  ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
 }
 
 /* ---------- upload ---------- */
@@ -648,84 +648,114 @@ document.getElementById("cartoonInput").addEventListener("change", (e) => {
   img.src = URL.createObjectURL(f);
 });
 
-/* ---------- cartoon filter (posterize + sobel ink) ---------- */
-function boxBlur(src, W, H, r) {
-  if (r <= 0) return src;
-  const tmp = new Uint8ClampedArray(src.length);
+/* ---------- cartoon filter: bilateral flatten → palette reduce → ink edges ----------
+   A real cartoon look needs edge-preserving smoothing (bilateral) so flat
+   colour regions form, then a reduced palette, then crisp black outlines drawn
+   along the region boundaries. Heavy smoothing runs at a reduced resolution
+   for speed, then the flat colour is upscaled and inked at full 1024. */
+function bilateral(src, W, H, radius, sigmaS, sigmaR) {
   const out = new Uint8ClampedArray(src.length);
-  // horizontal
+  const n = 2 * radius + 1;
+  const spat = new Float32Array(n * n);
+  const sS2 = 2 * sigmaS * sigmaS;
+  for (let dy = -radius; dy <= radius; dy++)
+    for (let dx = -radius; dx <= radius; dx++)
+      spat[(dy + radius) * n + (dx + radius)] = Math.exp(-(dx * dx + dy * dy) / sS2);
+  const sR2 = 2 * sigmaR * sigmaR;
   for (let y = 0; y < H; y++) {
-    for (let c = 0; c < 3; c++) {
-      let sum = 0;
-      for (let x = -r; x <= r; x++) sum += src[(y * W + Math.min(W - 1, Math.max(0, x))) * 4 + c];
-      for (let x = 0; x < W; x++) {
-        tmp[(y * W + x) * 4 + c] = sum / (2 * r + 1);
-        const add = Math.min(W - 1, x + r + 1), sub = Math.max(0, x - r);
-        sum += src[(y * W + add) * 4 + c] - src[(y * W + sub) * 4 + c];
+    for (let x = 0; x < W; x++) {
+      const ci = (y * W + x) * 4;
+      const cr = src[ci], cg = src[ci + 1], cb = src[ci + 2];
+      let ws = 0, ar = 0, ag = 0, ab = 0;
+      for (let dy = -radius; dy <= radius; dy++) {
+        const yy = y + dy; if (yy < 0 || yy >= H) continue;
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx; if (xx < 0 || xx >= W) continue;
+          const ni = (yy * W + xx) * 4;
+          const dr = src[ni] - cr, dg = src[ni + 1] - cg, db = src[ni + 2] - cb;
+          const w = spat[(dy + radius) * n + (dx + radius)] *
+                    Math.exp(-(dr * dr + dg * dg + db * db) / sR2);
+          ws += w; ar += w * src[ni]; ag += w * src[ni + 1]; ab += w * src[ni + 2];
+        }
       }
+      out[ci] = ar / ws; out[ci + 1] = ag / ws; out[ci + 2] = ab / ws; out[ci + 3] = 255;
     }
   }
-  // vertical
-  for (let x = 0; x < W; x++) {
-    for (let c = 0; c < 3; c++) {
-      let sum = 0;
-      for (let y = -r; y <= r; y++) sum += tmp[(Math.min(H - 1, Math.max(0, y)) * W + x) * 4 + c];
-      for (let y = 0; y < H; y++) {
-        out[(y * W + x) * 4 + c] = sum / (2 * r + 1);
-        const add = Math.min(H - 1, y + r + 1), sub = Math.max(0, y - r);
-        sum += tmp[(add * W + x) * 4 + c] - tmp[(sub * W + x) * 4 + c];
-      }
-    }
-  }
-  for (let i = 3; i < out.length; i += 4) out[i] = 255;
   return out;
 }
 
-function cartoonify(imgData, opts) {
-  const W = imgData.width, H = imgData.height;
-  const base = boxBlur(new Uint8ClampedArray(imgData.data), W, H, opts.smooth);
-  const gray = new Float32Array(W * H);
-  for (let i = 0, p = 0; i < W * H; i++, p += 4)
-    gray[i] = 0.299 * base[p] + 0.587 * base[p + 1] + 0.114 * base[p + 2];
+function posterize(data, levels) {
+  const step = 255 / (levels - 1);
+  for (let p = 0; p < data.length; p += 4) {
+    data[p]     = Math.round(Math.round(data[p]     / step) * step);
+    data[p + 1] = Math.round(Math.round(data[p + 1] / step) * step);
+    data[p + 2] = Math.round(Math.round(data[p + 2] / step) * step);
+  }
+}
 
-  const out = new Uint8ClampedArray(W * H * 4);
-  const L = opts.levels, step = 255 / (L - 1);
-  const thr = 90;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = y * W + x, p = i * 4;
-      for (let c = 0; c < 3; c++)
-        out[p + c] = Math.round(Math.round(base[p + c] / step) * step);
-      out[p + 3] = 255;
-      // sobel edge magnitude
-      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) {
-        const gx =
-          -gray[i - W - 1] - 2 * gray[i - 1] - gray[i + W - 1] +
-           gray[i - W + 1] + 2 * gray[i + 1] + gray[i + W + 1];
-        const gy =
-          -gray[i - W - 1] - 2 * gray[i - W] - gray[i - W + 1] +
-           gray[i + W - 1] + 2 * gray[i + W] + gray[i + W + 1];
-        if (Math.hypot(gx, gy) > thr) {
-          const k = opts.edgeStrength;
-          out[p] *= (1 - k); out[p + 1] *= (1 - k); out[p + 2] *= (1 - k);
-        }
+function saturate(data, amt) {
+  for (let p = 0; p < data.length; p += 4) {
+    const l = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+    data[p]     = l + (data[p]     - l) * amt;
+    data[p + 1] = l + (data[p + 1] - l) * amt;
+    data[p + 2] = l + (data[p + 2] - l) * amt;
+  }
+}
+
+/* darken `target` along luminance edges of `lumSrc` (crisp black ink) */
+function inkEdges(target, lumSrc, W, H, threshold, strength) {
+  const lum = new Float32Array(W * H);
+  for (let i = 0, p = 0; i < W * H; i++, p += 4)
+    lum[i] = 0.299 * lumSrc[p] + 0.587 * lumSrc[p + 1] + 0.114 * lumSrc[p + 2];
+  const t = target.data;
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const gx = -lum[i - W - 1] - 2 * lum[i - 1] - lum[i + W - 1] +
+                  lum[i - W + 1] + 2 * lum[i + 1] + lum[i + W + 1];
+      const gy = -lum[i - W - 1] - 2 * lum[i - W] - lum[i - W + 1] +
+                  lum[i + W - 1] + 2 * lum[i + W] + lum[i + W + 1];
+      const mag = Math.hypot(gx, gy);
+      if (mag > threshold) {
+        const p = i * 4;
+        const k = Math.min(1, strength * (0.45 + mag / 300));
+        t[p] *= (1 - k); t[p + 1] *= (1 - k); t[p + 2] *= (1 - k);
       }
     }
   }
-  return new ImageData(out, W, H);
 }
 
 function processCartoon() {
   if (!cartoonSource) return;
-  const sctx = document.getElementById("cvSrc").getContext("2d");
-  const id = sctx.getImageData(0, 0, SIZE, SIZE);
-  const out = cartoonify(id, {
-    levels: clampInt("cLevels", 6, 2, 16),
-    edgeStrength: clampInt("cEdge", 70, 0, 100) / 100,
-    smooth: clampInt("cSmooth", 2, 0, 5),
-  });
-  cartoonBase = out;
-  document.getElementById("cvOut").getContext("2d").putImageData(out, 0, 0);
+  cSetStatus("Cartoonifying… (heavy smoothing, a moment)");
+  const levels = clampInt("cLevels", 6, 2, 16);
+  const iters = clampInt("cSmooth", 2, 0, 5);
+  const es = clampInt("cEdge", 70, 0, 100) / 100;
+
+  // 1) flatten at reduced resolution, then reduce palette + boost colour
+  const P = 512;
+  const pc = document.createElement("canvas"); pc.width = pc.height = P;
+  const pctx = pc.getContext("2d");
+  drawCover(pctx, cartoonSource, P);
+  let data = new Uint8ClampedArray(pctx.getImageData(0, 0, P, P).data);
+  const passes = Math.max(1, iters);            // always flatten at least once
+  for (let i = 0; i < passes; i++) data = bilateral(data, P, P, 2, 3, 38);
+  posterize(data, levels);
+  saturate(data, 1.08);
+  pctx.putImageData(new ImageData(data, P, P), 0, 0);
+
+  // 2) upscale flat colour to 1024, then ink crisp outlines along region edges
+  const oc = document.getElementById("cvOut");
+  const octx = oc.getContext("2d");
+  octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = "high";
+  octx.clearRect(0, 0, SIZE, SIZE);
+  octx.drawImage(pc, 0, 0, SIZE, SIZE);
+  const full = octx.getImageData(0, 0, SIZE, SIZE);
+  const thr = 150 - es * 120;                   // stronger edge slider ⇒ more lines
+  inkEdges(full, full.data.slice(), SIZE, SIZE, thr, 0.6 + es * 0.4);
+  octx.putImageData(full, 0, 0);
+
+  cartoonBase = full;
   document.getElementById("cBuildBtn").disabled = false;
   document.getElementById("cDlBtn").disabled = true;
   document.getElementById("cartoonLayers").innerHTML = "";
